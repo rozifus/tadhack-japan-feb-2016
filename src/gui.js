@@ -1,9 +1,12 @@
 
-var TestRoom = require('./testroom')
+var TestRoom = require('./testroom');
+var Overlay = require('./overlay');
 
-module.exports = GUI = function() {
+var GUI = module.exports = function(obj) {
 
+  this.state = obj.state;
   this.initialize();
+  this.overlay = new Overlay(obj);
   this.test();
 
 };
