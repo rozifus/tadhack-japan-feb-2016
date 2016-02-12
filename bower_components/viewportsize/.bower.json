@@ -1,0 +1,14 @@
+{
+  "name": "viewportsize",
+  "homepage": "https://github.com/tysonmatanich/viewportSize",
+  "_release": "ff30d834a5",
+  "_resolution": {
+    "type": "branch",
+    "branch": "master",
+    "commit": "ff30d834a5bef5fb4722cff72735a8a096f494c7"
+  },
+  "_source": "git://github.com/tysonmatanich/viewportSize.git",
+  "_target": "*",
+  "_originalSource": "viewportsize",
+  "_direct": true
+}

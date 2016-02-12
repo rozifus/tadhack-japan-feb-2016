@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>TADHack - Japan 2016</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    body {
+      background:#ccc;
+      padding:0;
+      margin:0;
+      overflow:hidden;
+      font-family:georgia;
+      text-align:center;
+      color: #666;
+    }
+    canvas { 
+      pointer-events:none;
+      width: 100%;
+    }
+    #overlay {
+      position: absolute;
+      z-index: 9999;
+      top: 0;
+      left: 0;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+
+  <script src="./bower_components/three.js/build/three.js"></script>
+  <script src="./bower_components/viewportsize/viewportSize.js"></script>
+  <script src="https://skyway.io/dist/0.3/peer.min.js"></script>
+
+  <script src="./build.js"></script>
+
+</body>
+</html>
