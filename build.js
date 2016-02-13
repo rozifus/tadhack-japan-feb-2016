@@ -1,4 +1,347 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+
+var Main = require('./main');
+
+var main = new Main();
+
+
+
+
+
+},{"./main":4}],2:[function(require,module,exports){
+var Camera = module.exports = function() {
+	
+	// Connect to ROS.
+	this.ros = new ROSLIB.Ros({
+		url : 'ws://192.168.0.6:9090'
+	});
+
+	// Create the main viewer.
+	// this.viewer = new ROS3D.Viewer({
+	// 	divID : 'viewer',
+	// 	width : 800,
+	// 	height : 600,
+	// 	antialias : true
+	// });
+
+	// Setup a client to listen to TFs.
+	this.tfClient = new ROSLIB.TFClient({
+		ros : this.ros,
+		angularThres : 0.01,
+		transThres : 0.01,
+		rate : 5.0,
+		fixedFrame : '/realsense_frame'
+	});
+
+	// setup DepthCloud stream
+	this.depthCloud = new ROS3D.DepthCloud({
+		url : 'http://192.168.0.6:8080/stream?topic=/depthcloud_encoded&type=vp8'
+		// f : 525.0
+	});
+	this.depthCloud.startStream();
+
+	// Create Kinect scene node
+	this.scene_object = new ROS3D.SceneNode({
+		frameID : '/camera_color_optical_frame',
+		tfClient : this.tfClient,
+		object : this.depthCloud
+	});
+
+	// viewer.scene.add(kinectNode);
+}
+},{}],3:[function(require,module,exports){
+
+var TestRoom = require('./testroom');
+var Overlay = require('./overlay');
+var Camera = require('./camera');
+
+var GUI = module.exports = function(obj) {
+
+  this.state = obj.state;
+  this.initialize();
+  this.overlay = new Overlay(obj);
+  this.test();
+
+};
+
+GUI.prototype.initialize = function() {
+
+  var screenWidth = window.innerWidth;
+  var screenHeight = window.innerHeight;
+  var aspect = screenWidth / screenHeight;
+
+  // var container, renderer;
+  // var scene, camera, cameraHelper;
+
+  this.container = document.getElementById('main-canvas');
+  // document.body.appendChild(this.container)
+
+  this.scene = new THREE.Scene();
+  this.camera = new THREE.PerspectiveCamera(50, aspect, 1, 10000);
+  // this.camera.applyMatrix( new THREE.Matrix4().makeRotationY( Math.PI ) )
+  // this.scene.add(this.camera);
+
+  this.renderer = new THREE.WebGLRenderer( {antialias: true} );
+  this.renderer.setSize( screenWidth, screenHeight );
+
+  this.container.appendChild( this.renderer.domElement );
+
+  this.controls = new THREE.OrbitControls( this.camera );
+  this.controls.target = new THREE.Vector3(0, 0.5, 1.5);
+  this.controls.update();
+  this.controls.addEventListener('change', function(){
+    console.log("Moving...");
+    this.render();
+  }.bind(this));
+
+  this.depthCamera = new Camera();
+  this.scene.add(this.depthCamera.scene_object)
+
+  this.render();
+
+  // this.animate();
+
+  var t = this;
+  function onWindowResize( event ) {
+    t.resize();
+  }
+
+  window.addEventListener( 'resize', onWindowResize, false );
+
+}
+
+GUI.prototype.resize = function() {
+
+  var width = window.innerWidth;
+  var height = window.innerHeight;
+  var aspect = width / height;
+
+  this.renderer.setSize( width, height );
+  this.camera.aspect = aspect;
+  this.camera.updateProjectionMatrix();
+
+}
+
+GUI.prototype.test = function() {
+
+  var mesh = new THREE.Mesh(
+    new THREE.SphereBufferGeometry( 15, 15 , 15 ),
+    new THREE.MeshBasicMaterial( { color: 0xaaffcc, wireframe: true } )
+  );
+
+  //mesh.position.y = 150;
+  this.scene.add( mesh );
+
+  this.camera.lookAt( mesh.position )
+
+}
+
+GUI.prototype.animate = function() {
+
+  var t = this;
+  function frame() {
+    requestAnimationFrame(frame);
+    t.update();
+    t.render();
+  }
+  frame()
+
+}
+
+GUI.prototype.update = function() {
+
+}
+
+GUI.prototype.render = function() {
+
+  this.renderer.render(this.scene, this.camera);
+
+}
+
+
+},{"./camera":2,"./overlay":6,"./testroom":8}],4:[function(require,module,exports){
+
+var Gui = require('./gui');
+var Network = require('./network');
+var State = require('./state');
+
+var Main = module.exports = function() {
+
+  this.state = new State();
+  var obj = {state: this.state};
+  this.gui = new Gui(obj);
+  this.network = new Network(obj);
+
+  var t = this
+
+  function frame() {
+    requestAnimationFrame(frame);
+    t.update();
+  }
+  frame()
+
+}
+
+Main.prototype.update = function() {
+
+  this.network.frame();
+  this.gui.render();
+
+}
+
+
+
+
+
+
+},{"./gui":3,"./network":5,"./state":7}],5:[function(require,module,exports){
+
+var Network = module.exports = function(obj) { 
+
+  this.state = obj.state 
+  this.frameCount = 0;
+  this.framesPerFindPeers = 60 * 5;
+
+  this.createPeer();
+
+}
+
+Network.prototype.findPeers = function() {
+
+  var t = this;
+
+  this.peer.listAllPeers(function(newList) {
+    t.state.setPeerList(newList);
+  });
+
+}
+
+Network.prototype.frame = function() {
+
+  if ((this.frameCount % this.framesPerFindPeers) == 0) {
+    this.findPeers();
+  }
+
+  this.frameCount++;
+  if (this.frameCount >= Number.MAX_VALUE) {
+    this.frameCount = 0
+  }
+
+}
+
+Network.prototype.createPeer = function() {
+
+  var t = this;
+
+  this.peer = new Peer({key: '423dfb31-1f46-43cd-994b-d506854b95a0'});
+
+  this.peer.on('open', function(id) {
+    t.state.setPeerId(id);
+  });
+
+}
+
+
+
+
+},{}],6:[function(require,module,exports){
+
+
+var Overlay = module.exports = function(obj) {
+
+  this.state = obj.state;
+  this.connectEvents();
+
+}
+
+Overlay.prototype.connectEvents = function() {
+
+  var t = this;
+
+  t.state.on('new-peer-list', function(newList) {
+    t.updatePeerList(t.state.getForeignPeerList());
+  });
+
+}
+
+Overlay.prototype.updatePeerList = function(list) {
+
+  var userList = $('#user-list');
+  userList.empty();
+
+  for (var i = 0; i < list.length; i++) {
+    $('<div/>', {
+      'class': 'user-button',
+      'data-user-id': list[i],
+      html: '<p>'+list[i]+'</p>' 
+    }).appendTo($('#user-list'));
+  };
+
+}
+
+
+
+},{}],7:[function(require,module,exports){
+
+var peerList = new Array();
+var peerId = '';
+var EventEmitter = require('events').EventEmitter;
+
+var State = module.exports = function() { 
+
+  EventEmitter.call(this);
+  this.initialize();
+
+}
+
+State.prototype = new EventEmitter;
+
+State.prototype.initialize = function() {
+
+
+}
+
+State.prototype.setPeerList = function(newList) {
+  peerList = newList;
+  this.emit('new-peer-list', newList);
+}
+
+State.prototype.getPeerList = function() {
+  return peerList;
+}
+
+State.prototype.getForeignPeerList = function() {
+
+  var fpl = new Array();
+  for (var i = 0; i < peerList.length; i++) {
+    if (peerList[i] !== peerId) {
+      fpl.push(peerList[i]);
+    };
+  };
+  return fpl;
+
+}
+
+State.prototype.setPeerId = function(newPeerId) {
+
+  peerId = newPeerId;
+  this.emit('new-peer-id', newPeerId);
+
+}
+
+
+
+
+},{"events":9}],8:[function(require,module,exports){
+
+module.exports = { 
+  Init: function() {
+    console.log("iniit");
+  }
+}
+
+
+},{}],9:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -298,291 +641,4 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],2:[function(require,module,exports){
-
-var Main = require('./main');
-
-var main = new Main();
-
-
-
-
-
-},{"./main":4}],3:[function(require,module,exports){
-
-var TestRoom = require('./testroom');
-var Overlay = require('./overlay');
-
-var GUI = module.exports = function(obj) {
-
-  this.state = obj.state;
-  this.initialize();
-  this.overlay = new Overlay(obj);
-  this.test();
-
-};
-
-GUI.prototype.initialize = function() {
-
-  var screenWidth = window.innerWidth;
-  var screenHeight = window.innerHeight;
-  var aspect = screenWidth / screenHeight;
-
-  var container, renderer;
-  var scene, camera, cameraHelper;
-
-  this.container = document.createElement('div');
-  document.body.appendChild(this.container)
-
-  this.scene = new THREE.Scene();
-  this.camera = new THREE.PerspectiveCamera(50, aspect, 1, 10000);
-  this.scene.add(this.camera);
-
-  this.renderer = new THREE.WebGLRenderer( {antialias: true} );
-  this.renderer.setSize( screenWidth, screenHeight );
-
-  this.container.appendChild( this.renderer.domElement );
-
-  this.animate();
-
-  var t = this;
-  function onWindowResize( event ) {
-    t.resize();
-  }
-
-  window.addEventListener( 'resize', onWindowResize, false );
-
-}
-
-GUI.prototype.resize = function() {
-
-  var width = window.innerWidth;
-  var height = window.innerHeight;
-  var aspect = width / height;
-
-  this.renderer.setSize( width, height );
-  this.camera.aspect = aspect;
-  this.camera.updateProjectionMatrix();
-
-}
-
-GUI.prototype.test = function() {
-
-  var mesh = new THREE.Mesh(
-    new THREE.SphereBufferGeometry( 15, 15 , 15 ),
-    new THREE.MeshBasicMaterial( { color: 0xaaffcc, wireframe: true } )
-  );
-
-  mesh.position.y = 150;
-  this.scene.add( mesh );
-
-  this.camera.lookAt( mesh.position )
-
-}
-
-GUI.prototype.animate = function() {
-
-  var t = this;
-  function frame() {
-    requestAnimationFrame(frame);
-    t.update();
-    t.render();
-  }
-  frame()
-
-}
-
-GUI.prototype.update = function() {
-
-}
-
-GUI.prototype.render = function() {
-
-  this.renderer.render(this.scene, this.camera);
-
-}
-
-
-},{"./overlay":6,"./testroom":8}],4:[function(require,module,exports){
-
-var Gui = require('./gui');
-var Network = require('./network');
-var State = require('./state');
-
-var Main = module.exports = function() {
-
-  this.state = new State();
-  var obj = {state: this.state};
-  this.gui = new Gui(obj);
-  this.network = new Network(obj);
-
-  var t = this
-
-  function frame() {
-    requestAnimationFrame(frame);
-    t.update();
-  }
-  frame()
-
-}
-
-Main.prototype.update = function() {
-
-  this.network.frame();
-  this.gui.render();
-
-}
-
-
-
-
-
-
-},{"./gui":3,"./network":5,"./state":7}],5:[function(require,module,exports){
-
-var Network = module.exports = function(obj) { 
-
-  this.state = obj.state 
-  this.frameCount = 0;
-  this.framesPerFindPeers = 60 * 5;
-
-  this.createPeer();
-
-}
-
-Network.prototype.findPeers = function() {
-
-  var t = this;
-
-  this.peer.listAllPeers(function(newList) {
-    t.state.setPeerList(newList);
-  });
-
-}
-
-Network.prototype.frame = function() {
-
-  if ((this.frameCount % this.framesPerFindPeers) == 0) {
-    this.findPeers();
-  }
-
-  this.frameCount++;
-  if (this.frameCount >= Number.MAX_VALUE) {
-    this.frameCount = 0
-  }
-
-}
-
-Network.prototype.createPeer = function() {
-
-  var t = this;
-
-  this.peer = new Peer({key: '423dfb31-1f46-43cd-994b-d506854b95a0'});
-
-  this.peer.on('open', function(id) {
-    t.state.setPeerId(id);
-  });
-
-}
-
-
-
-
-},{}],6:[function(require,module,exports){
-
-
-var Overlay = module.exports = function(obj) {
-
-  this.state = obj.state;
-  this.connectEvents();
-
-}
-
-Overlay.prototype.connectEvents = function() {
-
-  var t = this;
-
-  t.state.on('new-peer-list', function(newList) {
-    t.updatePeerList(t.state.getForeignPeerList());
-  });
-
-}
-
-Overlay.prototype.updatePeerList = function(list) {
-
-  var userList = $('#user-list');
-  userList.empty();
-
-  for (var i = 0; i < list.length; i++) {
-    $('<div/>', {
-      'class': 'user-button',
-      'data-user-id': list[i],
-      html: '<p>'+list[i]+'</p>' 
-    }).appendTo($('#user-list'));
-  };
-
-}
-
-
-
-},{}],7:[function(require,module,exports){
-
-var peerList = new Array();
-var peerId = '';
-var EventEmitter = require('events').EventEmitter;
-
-var State = module.exports = function() { 
-
-  EventEmitter.call(this);
-  this.initialize();
-
-}
-
-State.prototype = new EventEmitter;
-
-State.prototype.initialize = function() {
-
-
-}
-
-State.prototype.setPeerList = function(newList) {
-  peerList = newList;
-  this.emit('new-peer-list', newList);
-}
-
-State.prototype.getPeerList = function() {
-  return peerList;
-}
-
-State.prototype.getForeignPeerList = function() {
-
-  var fpl = new Array();
-  for (var i = 0; i < peerList.length; i++) {
-    if (peerList[i] !== peerId) {
-      fpl.push(peerList[i]);
-    };
-  };
-  return fpl;
-
-}
-
-State.prototype.setPeerId = function(newPeerId) {
-
-  peerId = newPeerId;
-  this.emit('new-peer-id', newPeerId);
-
-}
-
-
-
-
-},{"events":1}],8:[function(require,module,exports){
-
-module.exports = { 
-  Init: function() {
-    console.log("iniit");
-  }
-}
-
-
-},{}]},{},[2]);
+},{}]},{},[1]);

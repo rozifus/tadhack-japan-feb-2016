@@ -1,6 +1,7 @@
 
 var TestRoom = require('./testroom');
 var Overlay = require('./overlay');
+var Camera = require('./camera');
 
 var GUI = module.exports = function(obj) {
 
@@ -17,22 +18,36 @@ GUI.prototype.initialize = function() {
   var screenHeight = window.innerHeight;
   var aspect = screenWidth / screenHeight;
 
-  var container, renderer;
-  var scene, camera, cameraHelper;
+  // var container, renderer;
+  // var scene, camera, cameraHelper;
 
-  this.container = document.createElement('div');
-  document.body.appendChild(this.container)
+  this.container = document.getElementById('main-canvas');
+  // document.body.appendChild(this.container)
 
   this.scene = new THREE.Scene();
   this.camera = new THREE.PerspectiveCamera(50, aspect, 1, 10000);
-  this.scene.add(this.camera);
+  // this.camera.applyMatrix( new THREE.Matrix4().makeRotationY( Math.PI ) )
+  // this.scene.add(this.camera);
 
   this.renderer = new THREE.WebGLRenderer( {antialias: true} );
   this.renderer.setSize( screenWidth, screenHeight );
 
   this.container.appendChild( this.renderer.domElement );
 
-  this.animate();
+  this.controls = new THREE.OrbitControls( this.camera );
+  this.controls.target = new THREE.Vector3(0, 0.5, 1.5);
+  this.controls.update();
+  this.controls.addEventListener('change', function(){
+    console.log("Moving...");
+    this.render();
+  }.bind(this));
+
+  this.depthCamera = new Camera();
+  this.scene.add(this.depthCamera.scene_object)
+
+  this.render();
+
+  // this.animate();
 
   var t = this;
   function onWindowResize( event ) {
@@ -62,7 +77,7 @@ GUI.prototype.test = function() {
     new THREE.MeshBasicMaterial( { color: 0xaaffcc, wireframe: true } )
   );
 
-  mesh.position.y = 150;
+  //mesh.position.y = 150;
   this.scene.add( mesh );
 
   this.camera.lookAt( mesh.position )
